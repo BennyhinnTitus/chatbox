@@ -22,10 +22,12 @@ function App() {
     }
   ]);
   const [inputValue, setInputValue] = useState('');
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!chatContainerRef.current) return;
+    // scroll the container only so the page (window) doesn't jump
+    chatContainerRef.current.scrollTo({ top: chatContainerRef.current.scrollHeight, behavior: 'smooth' });
   };
 
   useEffect(() => {
@@ -116,11 +118,10 @@ function App() {
         <div className="bg-white rounded-lg shadow-2xl border border-[#7D9CB7]/30 overflow-hidden flex flex-col" style={{ height: '82vh' }}>
 
           {/* Chat Messages Area */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-[#4A7BA7] scrollbar-track-[#F2F2F3] bg-gradient-to-b from-[#FAFAFA] to-[#F2F2F3]">
+          <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-[#4A7BA7] scrollbar-track-[#F2F2F3] bg-gradient-to-b from-[#FAFAFA] to-[#F2F2F3]">
             {messages.map(message => (
               <ChatMessage key={message.id} message={message} />
             ))}
-            <div ref={chatEndRef} />
           </div>
 
           {/* Quick Actions Section */}
