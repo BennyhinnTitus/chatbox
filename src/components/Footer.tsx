@@ -18,6 +18,7 @@ function Footer() {
             <span className="text-white text-sm font-semibold font-['Roboto']">Chat Logs Protected</span>
           </div>
         </div>
+        <p className='text-3xl text-red-600'>TESTING</p>
 
         <div className="text-center">
           <p className="text-[#7D9CB7] text-sm mb-3 font-['Lato']">
