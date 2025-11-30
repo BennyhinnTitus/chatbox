@@ -28,12 +28,62 @@ const OLLAMA_API_URL = 'https://wd5cjm61-11434.inc1.devtunnels.ms/api/chat';
 // 🔁 MODEL NAME
 const OLLAMA_MODEL_NAME = 'phi3';
 
-// 📝 Questions for File Report form flow
-const FILE_REPORT_QUESTIONS = [
-  'What is your name?',
-  'What is your age?',
-  'What is your email?'
+// 🤝 Small compliments between questions
+const PRAISE_MESSAGES = ['Great, thank you!', 'Excellent.', 'Got it.', 'Perfect, thanks.', 'Nice.'];
+
+// 🧾 All report fields (except evidence)
+type FileReportFieldKey =
+  | 'name'
+  | 'role'
+  | 'department'
+  | 'location'
+  | 'complaintType'
+  | 'incidentDate'
+  | 'incidentTime'
+  | 'description'
+  | 'suspectedSource';
+
+interface FileReportField {
+  key: FileReportFieldKey;
+  question: string;
+  min?: number;
+  max?: number;
+  required?: boolean;
+}
+
+const FILE_REPORT_FIELDS: FileReportField[] = [
+  // 1. Personal details
+  { key: 'name',          question: 'What is your full name?',              min: 3,  max: 50,  required: true },
+  {
+    key: 'role',
+    question: 'Select your role:',
+    min: 5,
+    max: 40,
+    required: true
+  },
+  { key: 'department',    question: 'Enter your Department / Unit:',         min: 2,  max: 50,  required: true },
+  { key: 'location',      question: 'Enter your Location / Station:',        min: 2,  max: 50,  required: true },
+
+  // 2. Incident details
+  { key: 'complaintType', question: 'What is the complaint type?',           min: 3,  max: 50,  required: true },
+  { key: 'incidentDate',  question: 'Select the incident date:',             min: 8,  max: 10,  required: true },
+  { key: 'incidentTime',  question: 'Select the incident time:',             min: 4,  max: 5,   required: true },
+  { key: 'description',   question: 'Describe the incident in detail:',      min: 20, max: 500, required: true },
+  { key: 'suspectedSource', question: 'Who or what is the suspected source? (you can write "unknown")', min: 3, max: 100, required: true }
 ];
+
+interface FileReportData {
+  name: string;
+  role: string;
+  department: string;
+  location: string;
+  complaintType: string;
+  incidentDate: string;
+  incidentTime: string;
+  description: string;
+  suspectedSource: string;
+  evidence: { name: string; size: number }[];
+}
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([
@@ -52,12 +102,21 @@ function App() {
 
   // 🌟 FILE REPORT FLOW STATE
   const [isFileReportActive, setIsFileReportActive] = useState(false);
-  const [fileReportData, setFileReportData] = useState({
-    name: '',
-    age: '',
-    email: ''
-  });
   const [fileReportStep, setFileReportStep] = useState(0);
+  const [isEvidenceStep, setIsEvidenceStep] = useState(false);
+
+  const [fileReportData, setFileReportData] = useState<FileReportData>({
+    name: '',
+    role: '',
+    department: '',
+    location: '',
+    complaintType: '',
+    incidentDate: '',
+    incidentTime: '',
+    description: '',
+    suspectedSource: '',
+    evidence: []
+  });
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -73,7 +132,21 @@ function App() {
     scrollToBottom();
   }, [messages]);
 
-  // 📎 Handle image/file sending (no AI call, just show in UI)
+  // 🔊 Helper: add an AI message
+  const pushAiMessage = (text: string) => {
+    const msg: Message = {
+      id: (Date.now() + Math.random()).toString(),
+      text,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    };
+    setMessages(prev => [...prev, msg]);
+  };
+
+  // 📎 Handle image/file sending
   const handleSendFiles = (files: FileList) => {
     if (!files || files.length === 0) return;
 
@@ -93,7 +166,7 @@ function App() {
 
       const msg: Message = {
         id: `${Date.now()}-${Math.random()}`,
-        text: attachment.type === 'image' ? '📷 Image' : `📎 File: ${attachment.name}`,
+        text: attachment.type === 'image' ? '📷 Evidence image' : `📎 Evidence file: ${attachment.name}`,
         sender: 'user',
         timestamp: new Date().toLocaleTimeString('en-US', {
           hour: '2-digit',
@@ -103,19 +176,142 @@ function App() {
       };
 
       newMessages.push(msg);
+
+      // If we are in evidence step, also store in report data
+      if (isFileReportActive && isEvidenceStep) {
+        setFileReportData(prev => ({
+          ...prev,
+          evidence: [...prev.evidence, { name: file.name, size: file.size }]
+        }));
+      }
     });
 
     setMessages(prev => [...prev, ...newMessages]);
-
-    // If you want AI to react to uploads, later we can
-    // also send a small text message to the model here.
   };
 
-  // ⭐ USER SEND MESSAGE (handles normal chat + File Report flow)
+  // 🧩 Process one answer in File Report flow (used by text input + quick controls)
+  const processFileReportAnswer = (userText: string) => {
+    // 3️⃣ Evidence step
+    if (isEvidenceStep) {
+      if (userText.toLowerCase() !== 'done') {
+        pushAiMessage('Please upload any evidence using the attachment button. When finished, type "done".');
+        return;
+      }
+
+      // ✅ Finish report – output ALL info as a single FLAT JSON object
+      setIsFileReportActive(false);
+      setIsEvidenceStep(false);
+      setFileReportStep(0);
+
+      const finalPayload = {
+        name: fileReportData.name,
+        role: fileReportData.role,
+        department: fileReportData.department,
+        location: fileReportData.location,
+        complaintType: fileReportData.complaintType,
+        incidentDate: fileReportData.incidentDate,
+        incidentTime: fileReportData.incidentTime,
+        description: fileReportData.description,
+        suspectedSource: fileReportData.suspectedSource,
+        evidence: fileReportData.evidence // [{ name, size }]
+      };
+
+      const finalJson = JSON.stringify(finalPayload, null, 2);
+
+      // ❗Only ONE final JSON message, no extra text
+      pushAiMessage(finalJson);
+      return;
+    }
+
+    // 1️⃣ + 2️⃣ Question/answer steps
+    const field = FILE_REPORT_FIELDS[fileReportStep];
+    if (!field) {
+      // safety fallback: start evidence step
+      setIsEvidenceStep(true);
+      pushAiMessage(
+        'Now please upload any evidence files (images/documents) using the attachment button. When finished, type "done".'
+      );
+      return;
+    }
+
+    const len = userText.length;
+    if (field.min && len < field.min) {
+      pushAiMessage(`That seems too short. Please provide at least ${field.min} characters.`);
+      return;
+    }
+    if (field.max && len > field.max) {
+      pushAiMessage(`That seems too long. Please keep it under ${field.max} characters.`);
+      return;
+    }
+
+    // Specific validation for date/time (still useful if user types manually)
+    if (field.key === 'incidentDate') {
+      const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+      if (!datePattern.test(userText)) {
+        pushAiMessage('Please use date format YYYY-MM-DD.');
+        return;
+      }
+    }
+    if (field.key === 'incidentTime') {
+      const timePattern = /^\d{2}:\d{2}$/;
+      if (!timePattern.test(userText)) {
+        pushAiMessage('Please use time format HH:MM in 24-hour format.');
+        return;
+      }
+    }
+
+    // Save answer
+    setFileReportData(prev => ({
+      ...prev,
+      [field.key]: userText
+    }));
+
+    // Praise message
+    if (field.key === 'name') {
+      pushAiMessage(`Nice to meet you, ${userText}.`);
+    } else {
+      const praise = PRAISE_MESSAGES[Math.floor(Math.random() * PRAISE_MESSAGES.length)];
+      pushAiMessage(praise);
+    }
+
+    // Next step or move to evidence
+    const nextIndex = fileReportStep + 1;
+    if (nextIndex < FILE_REPORT_FIELDS.length) {
+      setFileReportStep(nextIndex);
+      const nextField = FILE_REPORT_FIELDS[nextIndex];
+      pushAiMessage(nextField.question);
+    } else {
+      // Switch to evidence step
+      setIsEvidenceStep(true);
+      pushAiMessage(
+        'Now please upload any evidence files (images/documents) using the attachment or image buttons. When you are done, type "done".'
+      );
+    }
+  };
+
+  // ⚡ Quick answers from dropdown / date / time controls inside chat
+  const handleFileReportQuickAnswer = (answer: string) => {
+    if (!isFileReportActive) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: answer,
+      sender: 'user',
+      timestamp: new Date().toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    processFileReportAnswer(answer);
+  };
+
+  // ⭐ USER SEND MESSAGE (normal chat + File Report flow)
   const handleSendMessage = async () => {
     if (inputValue.trim() === '') return;
 
-    const userText = inputValue;
+    const userText = inputValue.trim();
     setInputValue('');
 
     const userMessage: Message = {
@@ -130,62 +326,13 @@ function App() {
 
     setMessages(prev => [...prev, userMessage]);
 
-    // 🌟 FILE REPORT MODE: ask questions one by one, NO API CALL
+    // 🧩 FILE REPORT FLOW
     if (isFileReportActive) {
-      const updated = { ...fileReportData };
-
-      if (fileReportStep === 0) updated.name = userText;
-      if (fileReportStep === 1) updated.age = userText;
-      if (fileReportStep === 2) updated.email = userText;
-
-      setFileReportData(updated);
-
-      // More questions left → ask next
-      if (fileReportStep < FILE_REPORT_QUESTIONS.length - 1) {
-        const nextStep = fileReportStep + 1;
-        setFileReportStep(nextStep);
-
-        const aiQuestion: Message = {
-          id: (Date.now() + 1).toString(),
-          text: FILE_REPORT_QUESTIONS[nextStep],
-          sender: 'ai',
-          timestamp: new Date().toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-        };
-
-        setMessages(prev => [...prev, aiQuestion]);
-        return;
-      }
-
-      // ✅ All questions done → show final JSON only
-      setIsFileReportActive(false);
-      setFileReportStep(0);
-
-      const finalJsonObject = {
-        name: updated.name,
-        age: isNaN(Number(updated.age)) ? updated.age : Number(updated.age),
-        email: updated.email
-      };
-
-      const finalJson = JSON.stringify(finalJsonObject, null, 2);
-
-      const aiFinal: Message = {
-        id: (Date.now() + 2).toString(),
-        text: finalJson,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit'
-        })
-      };
-
-      setMessages(prev => [...prev, aiFinal]);
+      processFileReportAnswer(userText);
       return;
     }
 
-    // 🌍 NORMAL CHAT → call Ollama API
+    // 🌍 NORMAL CHAT → Ollama
     try {
       const apiMessages = [...messages, userMessage].map(m => ({
         role: m.sender === 'user' ? 'user' : 'assistant',
@@ -234,10 +381,22 @@ function App() {
   // ⭐ QUICK ACTIONS
   const handleQuickAction = (action: string) => {
     if (action === 'File Report') {
-      // Start local Q&A form flow, no API
+      // Start file report flow
       setIsFileReportActive(true);
-      setFileReportData({ name: '', age: '', email: '' });
+      setIsEvidenceStep(false);
       setFileReportStep(0);
+      setFileReportData({
+        name: '',
+        role: '',
+        department: '',
+        location: '',
+        complaintType: '',
+        incidentDate: '',
+        incidentTime: '',
+        description: '',
+        suspectedSource: '',
+        evidence: []
+      });
 
       const userMessage: Message = {
         id: Date.now().toString(),
@@ -249,17 +408,11 @@ function App() {
         })
       };
 
-      const aiQuestion: Message = {
-        id: (Date.now() + 1).toString(),
-        text: FILE_REPORT_QUESTIONS[0], // first question: name
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit'
-        })
-      };
+      setMessages(prev => [...prev, userMessage]);
 
-      setMessages(prev => [...prev, userMessage, aiQuestion]);
+      // First question
+      const firstField = FILE_REPORT_FIELDS[0];
+      pushAiMessage(firstField.question);
       return;
     }
 
@@ -276,6 +429,11 @@ function App() {
 
     setMessages(prev => [...prev, aiMessage]);
   };
+
+  const currentFieldKey: FileReportFieldKey | undefined =
+    isFileReportActive && !isEvidenceStep
+      ? FILE_REPORT_FIELDS[fileReportStep]?.key
+      : undefined;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F2F2F3] via-[#EEEEEE] to-[#E8E8E8] flex flex-col">
@@ -309,7 +467,30 @@ function App() {
             className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-[#4A7BA7] scrollbar-track-[#F2F2F3] bg-gradient-to-b from-[#FAFAFA] to-[#F2F2F3]"
           >
             {messages.map(message => (
-              <ChatMessage key={message.id} message={message} />
+              <ChatMessage
+                key={message.id}
+                message={message}
+                showRoleDropdown={
+                  isFileReportActive &&
+                  !isEvidenceStep &&
+                  currentFieldKey === 'role' &&
+                  message.sender === 'ai' &&
+                  message.text.startsWith('Select your role')
+                }
+                showDatePicker={
+                  isFileReportActive &&
+                  !isEvidenceStep &&
+                  currentFieldKey === 'incidentDate' &&
+                  message.sender === 'ai'
+                }
+                showTimePicker={
+                  isFileReportActive &&
+                  !isEvidenceStep &&
+                  currentFieldKey === 'incidentTime' &&
+                  message.sender === 'ai'
+                }
+                onQuickAnswer={handleFileReportQuickAnswer}
+              />
             ))}
           </div>
 
