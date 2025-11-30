@@ -17,7 +17,7 @@ export interface Attachment {
 export interface Message {
   id: string;
   text: string;
-  sender: 'user' | 'ai';
+  sender: "user" | "ai";
   timestamp: string;
   attachments?: Attachment[];
 }
@@ -88,7 +88,7 @@ interface FileReportData {
 function App() {
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: '1',
+      id: "1",
       text: "Hello! I'm Cyber AI Assistant, your 24/7 cybersecurity support system.",
       sender: 'ai',
       timestamp: new Date().toLocaleTimeString('en-US', {
@@ -499,26 +499,29 @@ function App() {
             <h3 className="text-[#2C3E50] text-sm font-bold mb-3 uppercase tracking-wider font-['Roboto']">
               Quick Actions:
             </h3>
+            <h3 className="text-[#2C3E50] text-sm font-bold mb-3 uppercase tracking-wider font-['Roboto']">
+              Quick Actions:
+            </h3>
             <div className="grid grid-cols-4 gap-3">
               <QuickActionButton
                 icon={<FileText className="w-5 h-5" />}
                 label="File Report"
-                onClick={() => handleQuickAction('File Report')}
+                onClick={() => handleQuickAction("File Report")}
               />
               <QuickActionButton
                 icon={<Activity className="w-5 h-5" />}
                 label="Check Status"
-                onClick={() => handleQuickAction('Check Status')}
+                onClick={() => handleQuickAction("Check Status")}
               />
               <QuickActionButton
                 icon={<AlertTriangle className="w-5 h-5" />}
                 label="Escalate"
-                onClick={() => handleQuickAction('Escalate')}
+                onClick={() => handleQuickAction("Escalate")}
               />
               <QuickActionButton
                 icon={<BookOpen className="w-5 h-5" />}
                 label="Playbooks"
-                onClick={() => handleQuickAction('Playbooks')}
+                onClick={() => handleQuickAction("Playbooks")}
               />
             </div>
           </div>
@@ -527,6 +530,9 @@ function App() {
           <div className="px-6 py-4 bg-gradient-to-r from-[#F2F2F3] to-[#EEEEEE]">
             <div className="bg-gradient-to-r from-[#FFC107]/20 to-[#FFD966]/20 border-2 border-[#FFC107] rounded-lg px-4 py-2.5 flex items-center gap-2 shadow-md hover:shadow-lg transition-shadow duration-200">
               <AlertTriangle className="w-5 h-5 text-[#F26419] animate-pulse" />
+              <span className="text-[#333333] font-semibold text-sm font-['Roboto']">
+                AI suggestion – verify before applying
+              </span>
               <span className="text-[#333333] font-semibold text-sm font-['Roboto']">
                 AI suggestion – verify before applying
               </span>
