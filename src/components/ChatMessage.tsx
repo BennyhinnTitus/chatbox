@@ -11,10 +11,41 @@ function formatFileSize(bytes: number) {
 
 interface ChatMessageProps {
   message: Message;
+  showRoleDropdown?: boolean;
+  showDatePicker?: boolean;
+  showTimePicker?: boolean;
+  onQuickAnswer?: (answer: string) => void;
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({
+  message,
+  showRoleDropdown,
+  showDatePicker,
+  showTimePicker,
+  onQuickAnswer
+}) => {
   const isUser = message.sender === 'user';
+
+  const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (!val || !onQuickAnswer) return;
+    onQuickAnswer(val);
+    e.target.value = '';
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value; // YYYY-MM-DD
+    if (!val || !onQuickAnswer) return;
+    onQuickAnswer(val);
+    e.target.value = '';
+  };
+
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value; // HH:MM
+    if (!val || !onQuickAnswer) return;
+    onQuickAnswer(val);
+    e.target.value = '';
+  };
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -60,6 +91,55 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                   </span>
                 </a>
               )
+            )}
+          </div>
+        )}
+
+        {/* Inline Controls: Role / Date / Time */}
+        {!isUser && (
+          <div className="mt-2 space-y-2">
+            {showRoleDropdown && (
+              <select
+                defaultValue=""
+                onChange={handleRoleChange}
+                className="w-full px-3 py-2 rounded-full border border-gray-300 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+              >
+                <option value="" disabled>
+                  Select your role
+                </option>
+                <option value="defence personnel">Defence personnel</option>
+                <option value="ex veteran/retired officer">Ex veteran / retired officer</option>
+                <option value="family member / dependent">Family member / dependent</option>
+                <option value="MoD authority">MoD authority</option>
+              </select>
+            )}
+
+            {showDatePicker && (
+              <div className="flex flex-col gap-1 text-xs">
+                <span className="text-gray-600">Tap to choose date:</span>
+                <input
+                  type="date"
+                  onChange={handleDateChange}
+                  className="px-3 py-2 rounded-full border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+                />
+              </div>
+            )}
+
+            {showTimePicker && (
+              <div className="flex flex-col gap-1 text-xs">
+                <span className="text-gray-600">Tap to choose time:</span>
+                <input
+                  type="time"
+                  onChange={handleTimeChange}
+                  className="px-3 py-2 rounded-full border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#0066CC]"
+                />
+              </div>
+            )}
+
+            {(showRoleDropdown || showDatePicker || showTimePicker) && (
+              <span className="text-[10px] text-gray-500">
+                You can also answer via the text box below if needed.
+              </span>
             )}
           </div>
         )}
