@@ -1,38 +1,101 @@
-import { Send } from 'lucide-react';
+import { useRef } from 'react';
+import { Send, Paperclip, Image as ImageIcon } from 'lucide-react';
 
 interface MessageInputProps {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
+  onSendFiles?: (files: FileList) => void;
 }
 
-function MessageInput({ value, onChange, onSend }: MessageInputProps) {
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+function MessageInput({ value, onChange, onSend, onSendFiles }: MessageInputProps) {
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       onSend();
     }
   };
 
+  const handleImageClick = () => {
+    imageInputRef.current?.click();
+  };
+
+  const handleFileClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0 && onSendFiles) {
+      onSendFiles(e.target.files);
+      e.target.value = '';
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0 && onSendFiles) {
+      onSendFiles(e.target.files);
+      e.target.value = '';
+    }
+  };
+
   return (
-    <div className="px-6 py-4 bg-gradient-to-r from-[#F2F2F3] to-[#EEEEEE] border-t-2 border-[#0066CC]/30">
-      <div className="flex gap-3">
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyPress={handleKeyPress}
-          placeholder="Ask about incident reporting, playbooks, status checks, or request analyst support..."
-          className="flex-1 px-4 py-3 bg-white text-[#333333] rounded-md border-2 border-[#7D9CB7]/40 focus:border-[#0066CC] focus:outline-none focus:ring-2 focus:ring-[#0078D4]/20 placeholder-[#4F4F4F]/60 text-sm font-['Lato'] shadow-sm hover:shadow-md transition-shadow duration-200"
-        />
-        <button
-          onClick={onSend}
-          className="px-6 py-3 bg-gradient-to-r from-[#0078D4] to-[#00BCD4] hover:from-[#00BCD4] hover:to-[#17A2B8] text-white rounded-md font-bold transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 flex items-center gap-2 font-['Roboto'] border-2 border-[#0078D4] hover:border-[#00BCD4]"
-        >
-          <Send className="w-4 h-4" />
-          <span>Send</span>
-        </button>
-      </div>
+    <div className="px-6 py-4 bg-[#F5F5F5] border-t border-[#D0D7DE] flex items-center gap-3">
+      {/* Hidden inputs */}
+      <input
+        type="file"
+        accept="image/*"
+        ref={imageInputRef}
+        onChange={handleImageChange}
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
+      {/* Image button */}
+      <button
+        type="button"
+        onClick={handleImageClick}
+        className="p-2 rounded-full hover:bg-gray-200 transition"
+        title="Send image"
+      >
+        <ImageIcon className="w-5 h-5 text-gray-600" />
+      </button>
+
+      {/* File button */}
+      <button
+        type="button"
+        onClick={handleFileClick}
+        className="p-2 rounded-full hover:bg-gray-200 transition"
+        title="Attach file"
+      >
+        <Paperclip className="w-5 h-5 text-gray-600" />
+      </button>
+
+      {/* Text input */}
+      <input
+        className="flex-1 px-4 py-2 rounded-full border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-[#0066CC] text-sm"
+        placeholder="Type a message..."
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+      />
+
+      {/* Send button */}
+      <button
+        type="button"
+        onClick={onSend}
+        className="ml-2 px-4 py-2 rounded-full bg-[#0066CC] hover:bg-[#0052A3] text-white flex items-center gap-1 text-sm font-semibold shadow-sm"
+      >
+        <Send className="w-4 h-4" />
+        Send
+      </button>
     </div>
   );
 }

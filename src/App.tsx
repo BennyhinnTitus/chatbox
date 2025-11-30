@@ -1,16 +1,39 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bot, FileText, Activity, AlertTriangle, BookOpen, Send, Shield } from 'lucide-react';
+import { Shield, FileText, Activity, AlertTriangle, BookOpen } from 'lucide-react';
 import ChatMessage from './components/ChatMessage';
 import QuickActionButton from './components/QuickActionButton';
 import MessageInput from './components/MessageInput';
 import Footer from './components/Footer';
 
-interface Message {
+export interface Attachment {
+  id: string;
+  type: 'image' | 'file';
+  name: string;
+  url: string;
+  size: number;
+  mimeType: string;
+}
+
+export interface Message {
   id: string;
   text: string;
   sender: 'user' | 'ai';
   timestamp: string;
+  attachments?: Attachment[];
 }
+
+// 🔗 CHANGE THIS TO YOUR TUNNEL URL
+const OLLAMA_API_URL = 'https://wd5cjm61-11434.inc1.devtunnels.ms/api/chat';
+
+// 🔁 MODEL NAME
+const OLLAMA_MODEL_NAME = 'phi3';
+
+// 📝 Questions for File Report form flow
+const FILE_REPORT_QUESTIONS = [
+  'What is your name?',
+  'What is your age?',
+  'What is your email?'
+];
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([
@@ -18,83 +41,240 @@ function App() {
       id: '1',
       text: "Hello! I'm Cyber AI Assistant, your 24/7 cybersecurity support system.",
       sender: 'ai',
-      timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      timestamp: new Date().toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
     }
   ]);
+
   const [inputValue, setInputValue] = useState('');
+
+  // 🌟 FILE REPORT FLOW STATE
+  const [isFileReportActive, setIsFileReportActive] = useState(false);
+  const [fileReportData, setFileReportData] = useState({
+    name: '',
+    age: '',
+    email: ''
+  });
+  const [fileReportStep, setFileReportStep] = useState(0);
+
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     if (!chatContainerRef.current) return;
-    // scroll the container only so the page (window) doesn't jump
-    chatContainerRef.current.scrollTo({ top: chatContainerRef.current.scrollHeight, behavior: 'smooth' });
+    chatContainerRef.current.scrollTo({
+      top: chatContainerRef.current.scrollHeight,
+      behavior: 'smooth'
+    });
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = () => {
+  // 📎 Handle image/file sending (no AI call, just show in UI)
+  const handleSendFiles = (files: FileList) => {
+    if (!files || files.length === 0) return;
+
+    const newMessages: Message[] = [];
+
+    Array.from(files).forEach(file => {
+      const objectUrl = URL.createObjectURL(file);
+
+      const attachment: Attachment = {
+        id: `${Date.now()}-${file.name}`,
+        type: file.type.startsWith('image/') ? 'image' : 'file',
+        name: file.name,
+        url: objectUrl,
+        size: file.size,
+        mimeType: file.type
+      };
+
+      const msg: Message = {
+        id: `${Date.now()}-${Math.random()}`,
+        text: attachment.type === 'image' ? '📷 Image' : `📎 File: ${attachment.name}`,
+        sender: 'user',
+        timestamp: new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        attachments: [attachment]
+      };
+
+      newMessages.push(msg);
+    });
+
+    setMessages(prev => [...prev, ...newMessages]);
+
+    // If you want AI to react to uploads, later we can
+    // also send a small text message to the model here.
+  };
+
+  // ⭐ USER SEND MESSAGE (handles normal chat + File Report flow)
+  const handleSendMessage = async () => {
     if (inputValue.trim() === '') return;
+
+    const userText = inputValue;
+    setInputValue('');
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      text: inputValue,
+      text: userText,
       sender: 'user',
-      timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      timestamp: new Date().toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
     };
 
     setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
 
-    setTimeout(() => {
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: 'Your inquiry has been logged. I can provide immediate guidance on defensive measures. What specific aspect would you like to explore?',
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages(prev => [...prev, aiMessage]);
-    }, 1000);
-  };
+    // 🌟 FILE REPORT MODE: ask questions one by one, NO API CALL
+    if (isFileReportActive) {
+      const updated = { ...fileReportData };
 
-  const handleQuickAction = (action: string) => {
-    const actionMessage: Message = {
-      id: Date.now().toString(),
-      text: action,
-      sender: 'user',
-      timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    };
+      if (fileReportStep === 0) updated.name = userText;
+      if (fileReportStep === 1) updated.age = userText;
+      if (fileReportStep === 2) updated.email = userText;
 
-    setMessages(prev => [...prev, actionMessage]);
+      setFileReportData(updated);
 
-    setTimeout(() => {
-      let responseText = '';
-      switch(action) {
-        case 'File Report':
-          responseText = 'I can help you file an incident report. Please provide details about the security incident you want to report.';
-          break;
-        case 'Check Status':
-          responseText = 'Checking current incident status... All systems are operational. No active critical incidents at this time.';
-          break;
-        case 'Escalate':
-          responseText = 'Initiating escalation protocol. A senior analyst will be notified immediately. Can you provide the incident ID or describe the critical issue?';
-          break;
-        case 'Playbooks':
-          responseText = 'Available security playbooks: 1) Malware Response 2) Phishing Investigation 3) Data Breach Protocol 4) DDoS Mitigation 5) Insider Threat Response. Which would you like to review?';
-          break;
-        default:
-          responseText = 'How can I assist you further?';
+      // More questions left → ask next
+      if (fileReportStep < FILE_REPORT_QUESTIONS.length - 1) {
+        const nextStep = fileReportStep + 1;
+        setFileReportStep(nextStep);
+
+        const aiQuestion: Message = {
+          id: (Date.now() + 1).toString(),
+          text: FILE_REPORT_QUESTIONS[nextStep],
+          sender: 'ai',
+          timestamp: new Date().toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        };
+
+        setMessages(prev => [...prev, aiQuestion]);
+        return;
       }
 
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: responseText,
+      // ✅ All questions done → show final JSON only
+      setIsFileReportActive(false);
+      setFileReportStep(0);
+
+      const finalJsonObject = {
+        name: updated.name,
+        age: isNaN(Number(updated.age)) ? updated.age : Number(updated.age),
+        email: updated.email
+      };
+
+      const finalJson = JSON.stringify(finalJsonObject, null, 2);
+
+      const aiFinal: Message = {
+        id: (Date.now() + 2).toString(),
+        text: finalJson,
         sender: 'ai',
-        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        timestamp: new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      };
+
+      setMessages(prev => [...prev, aiFinal]);
+      return;
+    }
+
+    // 🌍 NORMAL CHAT → call Ollama API
+    try {
+      const apiMessages = [...messages, userMessage].map(m => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: m.text
+      }));
+
+      const res = await fetch(OLLAMA_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: OLLAMA_MODEL_NAME,
+          messages: apiMessages,
+          stream: false
+        })
+      });
+
+      const data = await res.json();
+      const aiText =
+        data?.message?.content ?? 'Sorry, I could not generate a response.';
+
+      const aiMessage: Message = {
+        id: (Date.now() + 3).toString(),
+        text: aiText,
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      };
+
+      setMessages(prev => [...prev, aiMessage]);
+    } catch (err) {
+      const aiMessage: Message = {
+        id: (Date.now() + 4).toString(),
+        text: 'Failed to reach the AI server.',
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit'
+        })
       };
       setMessages(prev => [...prev, aiMessage]);
-    }, 1000);
+    }
+  };
+
+  // ⭐ QUICK ACTIONS
+  const handleQuickAction = (action: string) => {
+    if (action === 'File Report') {
+      // Start local Q&A form flow, no API
+      setIsFileReportActive(true);
+      setFileReportData({ name: '', age: '', email: '' });
+      setFileReportStep(0);
+
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        text: 'File Report initiated',
+        sender: 'user',
+        timestamp: new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      };
+
+      const aiQuestion: Message = {
+        id: (Date.now() + 1).toString(),
+        text: FILE_REPORT_QUESTIONS[0], // first question: name
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      };
+
+      setMessages(prev => [...prev, userMessage, aiQuestion]);
+      return;
+    }
+
+    // Placeholder for other actions
+    const aiMessage: Message = {
+      id: (Date.now() + 5).toString(),
+      text: `${action} action is not implemented yet.`,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    };
+
+    setMessages(prev => [...prev, aiMessage]);
   };
 
   return (
@@ -107,26 +287,37 @@ function App() {
             <Shield className="w-8 h-8 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-white tracking-wide font-['Roboto']" style={{ letterSpacing: '0.5px' }}>Cyber AI Assistant</h1>
-            <p className="text-[#7D9CB7] text-sm mt-1 font-['Lato']">24/7 intelligent support for incident response and threat analysis</p>
+            <h1 className="text-3xl font-bold text-white tracking-wide font-['Roboto']">
+              Cyber AI Assistant
+            </h1>
+            <p className="text-[#7D9CB7] text-sm mt-1 font-['Lato']">
+              24/7 intelligent support for incident response and threat analysis
+            </p>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Main Chat Box */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-8 py-6">
-        <div className="bg-white rounded-lg shadow-2xl border border-[#7D9CB7]/30 overflow-hidden flex flex-col" style={{ height: '82vh' }}>
-
-          {/* Chat Messages Area */}
-          <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-[#4A7BA7] scrollbar-track-[#F2F2F3] bg-gradient-to-b from-[#FAFAFA] to-[#F2F2F3]">
+        <div
+          className="bg-white rounded-lg shadow-2xl border border-[#7D9CB7]/30 overflow-hidden flex flex-col"
+          style={{ height: '82vh' }}
+        >
+          {/* Messages */}
+          <div
+            ref={chatContainerRef}
+            className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-[#4A7BA7] scrollbar-track-[#F2F2F3] bg-gradient-to-b from-[#FAFAFA] to-[#F2F2F3]"
+          >
             {messages.map(message => (
               <ChatMessage key={message.id} message={message} />
             ))}
           </div>
 
-          {/* Quick Actions Section */}
+          {/* Quick Actions */}
           <div className="px-6 py-5 bg-gradient-to-r from-[#F2F2F3] to-[#EEEEEE] border-t-2 border-[#0066CC]/20">
-            <h3 className="text-[#2C3E50] text-sm font-bold mb-3 uppercase tracking-wider font-['Roboto']">Quick Actions:</h3>
+            <h3 className="text-[#2C3E50] text-sm font-bold mb-3 uppercase tracking-wider font-['Roboto']">
+              Quick Actions:
+            </h3>
             <div className="grid grid-cols-4 gap-3">
               <QuickActionButton
                 icon={<FileText className="w-5 h-5" />}
@@ -151,19 +342,22 @@ function App() {
             </div>
           </div>
 
-          {/* AI Warning Banner */}
+          {/* Warning */}
           <div className="px-6 py-4 bg-gradient-to-r from-[#F2F2F3] to-[#EEEEEE]">
             <div className="bg-gradient-to-r from-[#FFC107]/20 to-[#FFD966]/20 border-2 border-[#FFC107] rounded-lg px-4 py-2.5 flex items-center gap-2 shadow-md hover:shadow-lg transition-shadow duration-200">
               <AlertTriangle className="w-5 h-5 text-[#F26419] animate-pulse" />
-              <span className="text-[#333333] font-semibold text-sm font-['Roboto']">AI suggestion – verify before applying</span>
+              <span className="text-[#333333] font-semibold text-sm font-['Roboto']">
+                AI suggestion – verify before applying
+              </span>
             </div>
           </div>
 
-          {/* Message Input */}
+          {/* Input Box */}
           <MessageInput
             value={inputValue}
             onChange={setInputValue}
             onSend={handleSendMessage}
+            onSendFiles={handleSendFiles}
           />
         </div>
       </main>
