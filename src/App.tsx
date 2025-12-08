@@ -365,6 +365,7 @@ function App() {
 
       setMessages(prev => [...prev, aiMessage]);
     } catch (err) {
+      console.error('Error communicating with Ollama API:', err);
       const aiMessage: Message = {
         id: (Date.now() + 4).toString(),
         text: 'Failed to reach the AI server.',
